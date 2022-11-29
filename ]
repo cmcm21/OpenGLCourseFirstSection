@@ -1,0 +1,150 @@
+#include "TriangleCreator.h"
+#include <string>
+#include <iostream>
+
+void TriangleCreator::CreateTriangle(GLuint& VAO_ID, GLuint& VBO_ID)
+{
+	//Triangle vertices (all screen triangule) 
+	GLfloat vertices[] = {
+		-1.0f, -1.0f,0.0f, // vertex left bottom
+		1.0f, -1.0f, 0.0f, // vertex right bottom
+		0.0f, 1.0f, 0.0f  // vertex middle up (x goes from -1 to 1, 0 is the middle) 
+	};
+
+	glGenVertexArrays(1, &VAO_ID); // create 1 vertex array in the graphic card with the id VAO_ID
+	glBindVertexArray(VAO_ID);
+
+	glGenBuffers(1, &VBO_ID); //create 1 vertex buffer array in the graphic car with the id VBO_ID
+	glBindBuffer(GL_ARRAY_BUFFER, VBO_ID);
+
+	//Static draw: We are not change theese values, the trinagle won't move on screen
+	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices) * 9, vertices, GL_STATIC_DRAW);
+
+	glVertexAttribPointer(
+		0, // index of the pointer
+		3, // who many values has the data
+		GL_FLOAT,// data type
+		GL_FALSE, // normilize?
+		0, // how many skips? you could have vertices with color, in this case you should skip the color values
+		0 // offset, where this data start in the array. it helps with larger objects.
+	);
+
+	glEnableVertexAttribArray(0);//enable the index where the vertex atribute are, basicaly, the same index from glVertexAttribPointer
+
+	//unbind VAO and VBO, bind an object to id 0 is equal to set a variable equal to null(Array=nullptr)
+	glBindBuffer(GL_ARRAY_BUFFER,0);
+	glBindVertexArray(0);
+
+}
+
+const char* TriangleCreator::GetVertexShader()
+{
+	return " \n\
+		#version 330						\n\
+											\n\
+		layout (location = 0) in vec3 pos;	\n\
+											\n\
+		uniform mat4 model;				    \n\
+	    out vec4 vecColour;				\n\
+											\n\
+		void main()							\n\
+		{									\n\
+			gl_Position = model * vec4(0.4* pos.x, 0.4* pos.y, pos.z, 1.0);  \n\
+			vecColour = vec4(clamp(pos),1.0f);							\n\
+		}									\n\
+	";
+}
+
+const char* TriangleCreator::GetFragmentShader()
+{
+	return " \n\
+		#version 330						\n\
+											\n\
+		out vec4 colour;						\n\
+	    in vec4 vecColour;						\n\
+											\n\
+		void main()							\n\
+		{									\n\
+			colour = vec4(0.0, 0.0, 0.0, 1.0);  \n\
+		}									\n\
+	";
+}
+
+void TriangleCreator::CompileShaders(GLuint &shader)
+{
+	shader = glCreateProgram();
+
+	if (!shader)
+	{
+		std::cout << "Error creating program" << std::endl;
+		return;
+	}
+
+	AddShader(shader, GetVertexShader(), GL_VERTEX_SHADER);
+	AddShader(shader, GetFragmentShader(), GL_FRAGMENT_SHADER);
+	
+	DebugShaderProgram(shader, false);
+	DebugShaderProgram(shader, true);
+}
+
+
+void TriangleCreator::AddShader(GLuint program, const char* shaderCode, GLenum shaderType)
+{
+	
+	GLuint shader = glCreateShader(shaderType);
+
+	const GLchar* code[1];
+	code[0] = shaderCode;
+
+	GLint codeLength[1];
+	codeLength[0] = strlen(shaderCode);
+
+	glShaderSource(
+		shader,
+		1, // the number of code sources
+		code,
+		codeLength
+	);
+
+	glCompileShader(shader);
+	DebugShaderCompile(shader, shaderType);
+
+	glAttachShader(program, shader);
+}
+
+void TriangleCreator::DebugShaderCompile(GLuint shader, GLenum shaderType)
+{
+	GLint result = 0;
+	GLchar eLog[1024] = { 0 };
+
+	glGetShaderiv(shader, GL_COMPILE_STATUS, &result);
+	if (!result)
+	{
+		glGetShaderInfoLog(shader, sizeof(eLog), nullptr, eLog);
+		std::cout << "Shader Compile " << shaderType << " Error: " << eLog << std::endl;
+		return;
+	}
+
+	glValidateProgram(shader);
+}
+
+void TriangleCreator::DebugShaderProgram(GLuint shader,bool validation)
+{
+	GLint result = 0;
+	GLchar eLog[1024] = { 0 };
+
+	GLenum typeOfDebug = validation ? GL_VALIDATE_STATUS : GL_LINK_STATUS;
+	const char* errorMsg = validation ? " validation error:  " : " link error: ";
+
+	glLinkProgram(shader);
+	glGetProgramiv(shader, typeOfDebug, &result);
+
+	if (!result)
+	{
+		glGetProgramInfoLog(shader, sizeof(eLog), nullptr, eLog);
+		std::cout << errorMsg << eLog << std::endl;
+		return;
+	}
+
+	glValidateProgram(shader);
+}
